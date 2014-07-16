@@ -46,7 +46,7 @@ func TestServerNoArgs(t *testing.T) {
 		server_err <- server.Serve()
 	}()
 
-	io.WriteString(c, `{"id":"42", "fn":"WordLength.Len"}`)
+	io.WriteString(c, `{"id":"42", "method":"WordLength.Len"}`)
 
 	var reply LowLevelReply
 	dec := json.NewDecoder(c)

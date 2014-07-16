@@ -20,10 +20,10 @@ type Message struct {
 
 	// Name of the function to call. If set, this is a request; if
 	// unset, this is a response.
-	Func string `json:"fn,omitempty"`
+	Func string `json:"method,omitempty"`
 
 	// Arguments for the RPC call. Only valid for a request.
-	Args interface{} `json:"args,omitempty"`
+	Args interface{} `json:"params,omitempty"`
 
 	// Result of the function call. A response will always have
 	// either Result or Error set. Only valid for a response.
@@ -37,7 +37,9 @@ type Message struct {
 // Error is the on-wire description of an error that occurred while
 // serving the method call.
 type Error struct {
-	Msg string `json:"msg,omitempty"`
+	Code int64 `json:"code,omitempty"`
+	Msg string `json:"message,omitempty"`
+	Data *string `json:"data,omitempty"`
 
 	// more fields may be added later
 

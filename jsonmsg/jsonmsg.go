@@ -22,10 +22,17 @@ type codec struct {
 // change.
 type jsonMessage struct {
 	ID     uint64          `json:"id,string,omitempty"`
-	Func   string          `json:"fn,omitempty"`
-	Args   json.RawMessage `json:"args,omitempty"`
+	Func   string          `json:"method,omitempty"`
+	Args   json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  *birpc.Error    `json:"error,omitempty"`
+}
+
+type Notification struct {
+	Func   string       `json:"method,omitempty"`
+	Args   interface{}  `json:"params,omitempty"`
+	Result interface{}  `json:"result,omitempty"`
+	Error  *birpc.Error `json:"error,omitempty"`
 }
 
 func (c *codec) ReadMessage(msg *birpc.Message) error {
@@ -45,6 +52,17 @@ func (c *codec) ReadMessage(msg *birpc.Message) error {
 func (c *codec) WriteMessage(msg *birpc.Message) error {
 	c.sending.Lock()
 	defer c.sending.Unlock()
+
+	// notifcation hack
+	n := Notification{}
+	if msg.ID == 0 {
+		n.Func = msg.Func
+		n.Args = msg.Args
+		n.Result = msg.Result
+		n.Error = msg.Error
+		return c.enc.Encode(n)
+	}
+
 	return c.enc.Encode(msg)
 }
 

@@ -41,7 +41,7 @@ func makeRegistry() *birpc.Registry {
 	return r
 }
 
-const PALINDROME = `{"id": "42", "fn": "WordLength.Len", "args": {"Word": "saippuakauppias"}}` + "\n"
+const PALINDROME = `{"id": "42", "method": "WordLength.Len", "params": {"Word": "saippuakauppias"}}` + "\n"
 
 func TestServerSimple(t *testing.T) {
 	c, s := net.Pipe()
@@ -186,7 +186,7 @@ func TestServerEndpointArg(t *testing.T) {
 		server_err <- server.Serve()
 	}()
 
-	io.WriteString(c, `{"id":"42","fn":"EndpointPeer.Poke","args":{}}`)
+	io.WriteString(c, `{"id":"42","method":"EndpointPeer.Poke","params":{}}`)
 
 	var reply EndpointPeer_LowLevelReply
 	dec := json.NewDecoder(c)

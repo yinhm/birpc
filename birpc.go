@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/rpc"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -97,7 +98,7 @@ func (r *Registry) RegisterService(object interface{}) {
 
 	for _, fn := range methods {
 		name := serviceName + "." + fn.method.Name
-		r.functions[name] = fn
+		r.functions[strings.ToLower(name)] = fn
 	}
 }
 
@@ -171,9 +172,25 @@ func NewEndpoint(codec Codec, registry *Registry) *Endpoint {
 	return e
 }
 
+func (e *Endpoint) serve_notify(msg *Message) error {
+	e.server.registry.mu.RLock()
+	fn := e.server.registry.functions[strings.ToLower(msg.Func)]
+	e.server.registry.mu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+
+	e.server.running.Add(1)
+	go func(fn *function, msg *Message) {
+		defer e.server.running.Done()
+		e.callNotify(fn, msg)
+	}(fn, msg)
+	return nil
+}
+
 func (e *Endpoint) serve_request(msg *Message) error {
 	e.server.registry.mu.RLock()
-	fn := e.server.registry.functions[msg.Func]
+	fn := e.server.registry.functions[strings.ToLower(msg.Func)]
 	e.server.registry.mu.RUnlock()
 	if fn == nil {
 		msg.Error = &Error{Msg: "No such function."}
@@ -238,7 +255,9 @@ func (e *Endpoint) Serve() error {
 			return err
 		}
 
-		if msg.Func != "" {
+		if msg.Func != "" && msg.ID == 0 {
+			err = e.serve_notify(&msg)
+		} else if msg.Func != "" {
 			err = e.serve_request(&msg)
 		} else {
 			err = e.serve_response(&msg)
@@ -249,8 +268,29 @@ func (e *Endpoint) Serve() error {
 	}
 }
 
+// Wait server request done then close connection. Useful for server
+// close connection when auth failed.
+func (e *Endpoint) WaitClose() {
+	go func() {
+		e.server.running.Wait()
+		e.codec.Close()
+	}()
+}
+
+func (e *Endpoint) Close() {
+	e.codec.Close()
+}
+
 func (e *Endpoint) send(msg *Message) error {
 	return e.codec.WriteMessage(msg)
+}
+
+func (e *Endpoint) Notify(msg *Message) error {
+	err := e.codec.WriteMessage(msg)
+	if err != nil {
+		e.codec.Close()
+	}
+	return err
 }
 
 func (e *Endpoint) fillArgs(arglist []reflect.Value) error {
@@ -327,13 +367,13 @@ func (e *Endpoint) call(fn *function, msg *Message) {
 	retval := fn.method.Func.Call(arglist)
 	erri := retval[0].Interface()
 	if erri != nil {
-		err := erri.(error)
-		msg.Error = &Error{Msg: err.Error()}
+		err := erri.(*Error)
+		msg.Error = err
 		msg.Func = ""
 		msg.Args = nil
 		msg.Result = nil
-		err = e.send(msg)
-		if err != nil {
+		err2 := e.send(msg)
+		if err2 != nil {
 			// well, we can't report the problem to the client...
 			e.codec.Close()
 			return
@@ -348,6 +388,29 @@ func (e *Endpoint) call(fn *function, msg *Message) {
 	err = e.send(msg)
 	if err != nil {
 		// well, we can't report the problem to the client...
+		e.codec.Close()
+		return
+	}
+}
+
+func (e *Endpoint) callNotify(fn *function, msg *Message) {
+	args := reflect.New(fn.args)
+	err := e.codec.UnmarshalArgs(msg, args.Interface())
+	if err != nil {
+		e.codec.Close()
+		return
+	}
+	reply := reflect.New(fn.reply)
+
+	num_args := fn.method.Type.NumIn()
+	arglist := make([]reflect.Value, num_args, num_args)
+	arglist[0] = fn.receiver
+	arglist[1] = args
+	arglist[2] = reply
+
+	retval := fn.method.Func.Call(arglist)
+	erri := retval[0].Interface()
+	if erri != nil {
 		e.codec.Close()
 		return
 	}
