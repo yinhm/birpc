@@ -2,8 +2,8 @@ package jsonmsg_test
 
 import (
 	"encoding/json"
-	"github.com/tv42/birpc"
-	"github.com/tv42/birpc/jsonmsg"
+	"github.com/yinhm/birpc"
+	"github.com/yinhm/birpc/jsonmsg"
 	"io"
 	"net"
 	"testing"
@@ -18,7 +18,7 @@ type Reply struct {
 }
 
 type LowLevelReply struct {
-	Id     uint64       `json:"id,string"`
+	Id     uint64       `json:"id"`
 	Result Reply        `json:"result"`
 	Error  *birpc.Error `json:"error"`
 }
@@ -46,7 +46,7 @@ func TestServerNoArgs(t *testing.T) {
 		server_err <- server.Serve()
 	}()
 
-	io.WriteString(c, `{"id":"42", "method":"WordLength.Len"}`)
+	io.WriteString(c, `{"id":42, "method":"WordLength.Len"}`)
 
 	var reply LowLevelReply
 	dec := json.NewDecoder(c)

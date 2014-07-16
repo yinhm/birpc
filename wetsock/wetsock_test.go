@@ -3,9 +3,9 @@ package wetsock_test
 import (
 	"code.google.com/p/go.net/websocket"
 	"fmt"
-	"github.com/tv42/birpc"
-	"github.com/tv42/birpc/oneshotlisten"
-	"github.com/tv42/birpc/wetsock"
+	"github.com/yinhm/birpc"
+	"github.com/yinhm/birpc/oneshotlisten"
+	"github.com/yinhm/birpc/wetsock"
 	"io"
 	"log"
 	"net"

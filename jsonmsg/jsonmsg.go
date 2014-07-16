@@ -3,7 +3,7 @@ package jsonmsg
 import (
 	"encoding/json"
 	"errors"
-	"github.com/tv42/birpc"
+	"github.com/yinhm/birpc"
 	"io"
 	"sync"
 )
@@ -21,18 +21,25 @@ type codec struct {
 // can embed birpc.Message and just override the two fields I need to
 // change.
 type jsonMessage struct {
-	ID     uint64          `json:"id,string,omitempty"`
-	Func   string          `json:"method,omitempty"`
-	Args   json.RawMessage `json:"params,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *birpc.Error    `json:"error,omitempty"`
+	ID     uint64           `json:"id,omitempty"`
+	Func   string           `json:"method,omitempty"`
+	Args   json.RawMessage  `json:"params,omitempty"`
+	Result json.RawMessage  `json:"result,omitempty"`
+	Error  *json.RawMessage `json:"error,omitempty"`
+}
+
+type responseMessage struct {
+	ID     uint64      `json:"id,omitempty"`
+	Func   string      `json:"method,omitempty"`
+	Args   interface{} `json:"params,omitempty"`
+	Result interface{} `json:"result,omitempty"`
+	Error  interface{} `json:"error,omitempty"`
 }
 
 type Notification struct {
-	Func   string       `json:"method,omitempty"`
-	Args   interface{}  `json:"params,omitempty"`
-	Result interface{}  `json:"result,omitempty"`
-	Error  *birpc.Error `json:"error,omitempty"`
+	Func   string      `json:"method,omitempty"`
+	Args   interface{} `json:"params,omitempty"`
+	Result interface{} `json:"result,omitempty"`
 }
 
 func (c *codec) ReadMessage(msg *birpc.Message) error {
@@ -45,7 +52,16 @@ func (c *codec) ReadMessage(msg *birpc.Message) error {
 	msg.Func = jm.Func
 	msg.Args = jm.Args
 	msg.Result = jm.Result
-	msg.Error = jm.Error
+
+	if jm.Error != nil {
+		rerr := &birpc.Error{}
+		err = c.UnmarshalError(jm.Error, rerr)
+		if err != nil {
+			return err
+		}
+		msg.Error = rerr
+	}
+
 	return nil
 }
 
@@ -59,11 +75,23 @@ func (c *codec) WriteMessage(msg *birpc.Message) error {
 		n.Func = msg.Func
 		n.Args = msg.Args
 		n.Result = msg.Result
-		n.Error = msg.Error
 		return c.enc.Encode(n)
 	}
 
-	return c.enc.Encode(msg)
+	var r responseMessage
+	r.ID = msg.ID
+	r.Func = msg.Func
+	r.Args = msg.Args
+	r.Args = msg.Args
+	r.Result = msg.Result
+	if msg.Error != nil {
+		r.Error = &birpc.List{
+			msg.Error.Code,
+			msg.Error.Msg,
+			msg.Error.Data,
+		}
+	}
+	return c.enc.Encode(r)
 }
 
 func (c *codec) Close() error {
@@ -86,6 +114,25 @@ func (c *codec) UnmarshalResult(msg *birpc.Message, result interface{}) error {
 	}
 	err := json.Unmarshal(raw, result)
 	return err
+}
+
+func (c *codec) UnmarshalError(raw *json.RawMessage, rerr *birpc.Error) error {
+	if raw == nil {
+		return nil
+	}
+	to := &birpc.List{}
+	err := json.Unmarshal([]byte(*raw), to)
+	if err != nil {
+		return err
+	}
+	d := (birpc.List)(*to)
+
+	rerr.Code = int(d[0].(float64))
+	rerr.Msg = d[1].(string)
+	if len(d) == 3 {
+		rerr.Data = d[2]
+	}
+	return nil
 }
 
 func NewCodec(conn io.ReadWriteCloser) *codec {

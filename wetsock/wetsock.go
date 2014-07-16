@@ -4,7 +4,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"errors"
-	"github.com/tv42/birpc"
+	"github.com/yinhm/birpc"
 	"reflect"
 )
 

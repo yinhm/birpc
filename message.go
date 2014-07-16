@@ -16,7 +16,7 @@ import (
 //   {"id":"1","error":{"msg":"Math is hard, let's go shopping"}}
 type Message struct {
 	// 0 or omitted for untagged request (untagged response is illegal).
-	ID uint64 `json:"id,string,omitempty"`
+	ID uint64 `json:"id,omitempty"`
 
 	// Name of the function to call. If set, this is a request; if
 	// unset, this is a response.
@@ -34,12 +34,14 @@ type Message struct {
 	Error *Error `json:"error,omitempty"`
 }
 
+type List []interface{}
+
 // Error is the on-wire description of an error that occurred while
 // serving the method call.
 type Error struct {
-	Code int64 `json:"code,omitempty"`
+	Code int   `json:"code,omitempty"`
 	Msg string `json:"message,omitempty"`
-	Data *string `json:"data,omitempty"`
+	Data interface{} `json:"data,omitempty"`
 
 	// more fields may be added later
 

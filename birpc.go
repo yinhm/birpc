@@ -16,6 +16,7 @@
 package birpc
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -120,6 +121,7 @@ type Codec interface {
 
 	UnmarshalArgs(msg *Message, args interface{}) error
 	UnmarshalResult(msg *Message, result interface{}) error
+	UnmarshalError(rawMsg *json.RawMessage, rerr *Error) error
 
 	io.Closer
 }
@@ -152,6 +154,8 @@ type Endpoint struct {
 		registry *Registry
 		running  sync.WaitGroup
 	}
+
+	Context interface{}
 }
 
 // Dummy registry with no functions registered.
@@ -231,7 +235,7 @@ func (e *Endpoint) serve_response(msg *Message) error {
 			}
 		}
 	} else {
-		call.Error = rpc.ServerError(msg.Error.Msg)
+		call.Error = msg.Error
 	}
 
 	// notify the caller, but never block
@@ -268,11 +272,16 @@ func (e *Endpoint) Serve() error {
 	}
 }
 
+// Wait server request done then close connection.
+func (e *Endpoint) WaitServer() {
+	e.server.running.Wait()
+}
+
 // Wait server request done then close connection. Useful for server
 // close connection when auth failed.
 func (e *Endpoint) WaitClose() {
 	go func() {
-		e.server.running.Wait()
+		e.WaitServer()
 		e.codec.Close()
 	}()
 }
@@ -407,6 +416,27 @@ func (e *Endpoint) callNotify(fn *function, msg *Message) {
 	arglist[0] = fn.receiver
 	arglist[1] = args
 	arglist[2] = reply
+
+	if num_args > 3 {
+		for i := 3; i < num_args; i++ {
+			arglist[i] = reflect.Zero(fn.method.Type.In(i))
+		}
+		// first fill what we can
+		err = e.fillArgs(arglist[3:])
+		if err != nil {
+			e.codec.Close()
+			return
+		}
+
+		// then codec fills what it can
+		if filler, ok := e.codec.(FillArgser); ok {
+			err = filler.FillArgs(arglist[3:])
+			if err != nil {
+				e.codec.Close()
+				return
+			}
+		}
+	}
 
 	retval := fn.method.Func.Call(arglist)
 	erri := retval[0].Interface()
