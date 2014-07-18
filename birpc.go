@@ -347,12 +347,11 @@ func (e *Endpoint) call(fn *function, msg *Message) {
 			msg.Func = ""
 			msg.Args = nil
 			msg.Result = nil
-			err = e.send(msg)
-			if err != nil {
+			if err = e.send(msg); err != nil {
 				// well, we can't report the problem to the client...
 				e.codec.Close()
-				return
 			}
+			return
 		}
 
 		// then codec fills what it can
@@ -363,12 +362,11 @@ func (e *Endpoint) call(fn *function, msg *Message) {
 				msg.Func = ""
 				msg.Args = nil
 				msg.Result = nil
-				err = e.send(msg)
-				if err != nil {
+				if err = e.send(msg); err != nil {
 					// well, we can't report the problem to the client...
 					e.codec.Close()
-					return
 				}
+				return
 			}
 		}
 	}
@@ -381,12 +379,11 @@ func (e *Endpoint) call(fn *function, msg *Message) {
 		msg.Func = ""
 		msg.Args = nil
 		msg.Result = nil
-		err2 := e.send(msg)
-		if err2 != nil {
+		if err2 := e.send(msg); err2 != nil {
 			// well, we can't report the problem to the client...
 			e.codec.Close()
-			return
 		}
+		return
 	}
 
 	msg.Error = nil
